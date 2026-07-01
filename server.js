@@ -1,23 +1,22 @@
 const express = require('express');
 const app = express();
-const fetch = require('node-fetch'); // تأكد من تثبيت node-fetch
 const PORT = process.env.PORT || 3000;
 
 app.get('/', async (req, res) => {
-    // 1. استخراج المتغير (مثلاً ?to=snap)
+    // 1. استخراج المتغير والـ IP
     const destination = req.query.to;
     const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     // 2. الروابط
     const telegramUrl = "https://t.me/uUl8iPwh5iYTVk";
     const snapUrl = "https://www.snapchat.com/add/rossan2682";
-    let targetUrl = telegramUrl; // الافتراضي تليجرام
+    let targetUrl = telegramUrl; 
 
     if (destination === 'snap') {
         targetUrl = snapUrl;
     }
 
-    // 3. إرسال التنبيه لتليجرام
+    // 3. إرسال التنبيه لتليجرام باستخدام fetch المدمج
     try {
         const token = process.env.TELEGRAM_TOKEN;
         const chatId = process.env.TELEGRAM_CHAT_ID;
