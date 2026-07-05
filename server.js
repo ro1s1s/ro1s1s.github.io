@@ -7,28 +7,24 @@ app.get('/', async (req, res) => {
     const destination = req.query.to;
     const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    // 2. الروابط
+    // 2. الروابط (تمت إضافة الإنستغرام)
     const telegramUrl = "https://t.me/uUl8iPwh5iYTVk";
     const snapUrl = "https://www.snapchat.com/add/rossan2682";
-    let targetUrl = telegramUrl; 
+    const instaUrl = "https://ig.me/j/AbapZ-hZJ16gK_d4/";
+    
+    let targetUrl = telegramUrl; // الافتراضي تليجرام
 
     if (destination === 'snap') {
         targetUrl = snapUrl;
+    } else if (destination === 'insta') {
+        targetUrl = instaUrl;
     }
 
-    // 3. إرسال التنبيه لتليجرام باستخدام fetch المدمج (مع تصفية البوتات)
+    // 3. إرسال التنبيه لتليجرام مع تصفية البوتات
     try {
         const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-        
-        // قائمة بالكلمات الدليليلة للبوتات وأنظمة الفحص التلقائي التي تسبب التكرار
-        const isBot = userAgent.includes('bot') || 
-                      userAgent.includes('vercel') || 
-                      userAgent.includes('spider') || 
-                      userAgent.includes('crawl') || 
-                      userAgent.includes('facebookexternalhit') || 
-                      userAgent.includes('telegrambot');
+        const isBot = userAgent.includes('bot') || userAgent.includes('vercel') || userAgent.includes('spider') || userAgent.includes('crawl') || userAgent.includes('facebookexternalhit');
 
-        // لا يرسل رسالة لتليجرام إلا إذا كان الزائر شخصاً حقيقياً وليس بوتاً
         if (!isBot) {
             const token = process.env.TELEGRAM_TOKEN;
             const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -39,8 +35,6 @@ app.get('/', async (req, res) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chat_id: chatId, text: message })
             });
-        } else {
-            console.log("Ignored bot request from IP: " + visitorIp);
         }
     } catch (err) {
         console.log("Telegram Error: ", err);
