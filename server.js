@@ -2,15 +2,19 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// تجاهل طلبات الأيقونات لمنع الرسائل المتكررة
-app.get('/favicon.ico', (req, res) => res.status(204).end());
+// 1. تجاهل طلبات الأيقونات وملفات النظام تلقائياً لمنع التكرار
+app.use((req, res, next) => {
+    if (req.url.includes('favicon.ico') || req.url.includes('robots.txt')) {
+        return res.status(204).end();
+    }
+    next();
+});
 
 app.get('*', async (req, res) => {
     const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const to = req.query.to; // التقاط القيمة الموجودة بعد ?to=
-    const path = req.path; // التقاط المسار (مثل /AbYsIbwIHyJ3tWZq)
+    const to = req.query.to; 
+    const path = req.path;
 
-    // الروابط
     const telegramUrl = "https://t.me/uUl8iPwh5iYTVk";
     const snapUrl = "https://www.snapchat.com/add/rossan2682";
     const oldInstaUrl = "https://ig.me/j/AbapZ-hZJ16gK_d4/";
@@ -19,7 +23,7 @@ app.get('*', async (req, res) => {
     let targetUrl = telegramUrl;
     let destinationName = 'Telegram';
 
-    // منطق التوجيه بناءً على الرابط المكتوب
+    // منطق التوجيه
     if (path.includes('AbYsIbwIHyJ3tWZq')) {
         targetUrl = newInstaChannelUrl;
         destinationName = 'Instagram Channel';
@@ -34,23 +38,20 @@ app.get('*', async (req, res) => {
     // التوجيه الفوري
     res.redirect(302, targetUrl);
 
-    // التنبيه في الخلفية
-    try {
-        const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-        const isBot = userAgent.includes('bot') || userAgent.includes('crawl') || userAgent.includes('python');
+    // 2. إرسال التنبيه بشرط أن يكون الزائر حقيقياً (ليس بوت)
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    const isBot = userAgent.includes('bot') || userAgent.includes('spider') || userAgent.includes('crawl');
 
-        if (!isBot) {
-            const token = process.env.TELEGRAM_TOKEN;
-            const chatId = process.env.TELEGRAM_CHAT_ID;
-            if (token && chatId) {
-                fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: chatId, text: `🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}` })
-                }).catch(() => {});
-            }
+    if (!isBot && visitorIp) {
+        const token = process.env.TELEGRAM_TOKEN;
+        const chatId = process.env.TELEGRAM_CHAT_ID;
+        
+        if (token && chatId) {
+            // استخدام fetch بشكل آمن
+            fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(`🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`)}`)
+            .catch(() => {});
         }
-    } catch (err) {}
+    }
 });
 
 module.exports = app;
