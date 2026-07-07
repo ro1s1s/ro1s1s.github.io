@@ -2,11 +2,14 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// استخدمنا النجمة '*' لكي يقبل السيرفر أي رابط أو مسار
-app.get('*', async (req, res) => {
+// 1. تجاهل وإغلاق طلبات أيقونة الموقع (Favicon) تماماً لمنع التكرار والرسائل العشوائية
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// 2. استقبال الطلبات والمسارات بدقة
+app.get('/:path*', async (req, res) => {
     const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const host = req.headers.host || ''; 
-    const url = req.originalUrl || ''; // استخدام originalUrl لضمان التقاط الرمز بدقة
+    const path = req.path; 
 
     const telegramUrl = "https://t.me/uUl8iPwh5iYTVk";
     const snapUrl = "https://www.snapchat.com/add/rossan2682";
@@ -16,46 +19,50 @@ app.get('*', async (req, res) => {
     let targetUrl = telegramUrl; 
     let destinationName = 'Telegram';
 
-    // 1. فحص المسار الجديد أولاً بمرونة عالية
-    if (url.includes('AbYsIbwIHyJ3tWZq')) {
+    // التوجيه الذكي بناءً على الرابط المكتوب
+    if (path.includes('AbYsIbwIHyJ3tWZq')) {
         targetUrl = newInstaChannelUrl;
         destinationName = 'Instagram Channel';
-    } 
-    // 2. فحص روابط الدومينات الفرعية
-    else if (host.includes('instagram') || host.includes('ig')) {
+    } else if (host.includes('instagram') || host.includes('ig')) {
         targetUrl = oldInstaUrl;
         destinationName = 'Instagram';
-    } 
-    else if (host.includes('snap')) {
+    } else if (host.includes('snap')) {
         targetUrl = snapUrl;
         destinationName = 'Snapchat';
     }
 
-    // التوجيه الفوري والصامت (لن تظهر أي صفحة بيضاء أو كلام للمستخدم)
+    // التوجيه الفوري والصامت للزائر
     res.redirect(302, targetUrl);
 
-    // إرسال التنبيه لتليجرام في الخلفية
+    // 3. إرسال التنبيه لتليجرام في الخلفية مع تصفية صارمة جداً للبوتات
     try {
         const userAgent = (req.headers['user-agent'] || '').toLowerCase();
         
+        // حظر شامل لجميع أنواع البوتات وأدوات الفحص التلقائي
         const isBot = userAgent.includes('bot') || 
                       userAgent.includes('vercel') || 
                       userAgent.includes('spider') || 
                       userAgent.includes('crawl') || 
                       userAgent.includes('facebookexternalhit') || 
-                      userAgent.includes('telegrambot');
+                      userAgent.includes('telegrambot') ||
+                      userAgent.includes('python') ||
+                      userAgent.includes('curl') ||
+                      userAgent.includes('wget');
 
-        if (!isBot) {
+        // التأكد من أنه ليس بوتاً وأن المسار لا يخص أي ملفات تشغيلية
+        if (!isBot && !path.includes('favicon')) {
             const token = process.env.TELEGRAM_TOKEN;
             const chatId = process.env.TELEGRAM_CHAT_ID;
             
-            const message = `🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`;
-            
-            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chatId, text: message })
-            }).catch(err => console.log(err));
+            if (token && chatId) {
+                const message = `🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`;
+                
+                fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text: message })
+                }).catch(() => {});
+            }
         }
     } catch (err) {
         console.log("Error: ", err);
@@ -63,4 +70,4 @@ app.get('*', async (req, res) => {
 });
 
 module.exports = app;
-app.listen(PORT, () => console.log("Server is running..."));
+app.listen(PORT);
