@@ -2,16 +2,17 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. تجاهل طلبات الأيقونات وملفات النظام تلقائياً لمنع التكرار
-app.use((req, res, next) => {
+app.get('*', async (req, res) => {
+    // 1. تجاهل أيقونات الموقع تماماً لمنع التكرار
     if (req.url.includes('favicon.ico') || req.url.includes('robots.txt')) {
         return res.status(204).end();
     }
-    next();
-});
 
-app.get('*', async (req, res) => {
-    const visitorIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // جلب الآي بي
+    const xRealIp = req.headers['x-real-ip'];
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    const visitorIp = xRealIp || (xForwardedFor ? xForwardedFor.split(',')[0].trim() : req.socket.remoteAddress) || 'Unknown IP';
+
     const to = req.query.to; 
     const path = req.path;
 
@@ -23,7 +24,7 @@ app.get('*', async (req, res) => {
     let targetUrl = telegramUrl;
     let destinationName = 'Telegram';
 
-    // منطق التوجيه
+    // مسارات التوجيه
     if (path.includes('AbYsIbwIHyJ3tWZq')) {
         targetUrl = newInstaChannelUrl;
         destinationName = 'Instagram Channel';
@@ -35,23 +36,30 @@ app.get('*', async (req, res) => {
         destinationName = 'Snapchat';
     }
 
-    // التوجيه الفوري
-    res.redirect(302, targetUrl);
-
-    // 2. إرسال التنبيه بشرط أن يكون الزائر حقيقياً (ليس بوت)
+    // 2. فلتر البوتات (يمنع معاينات الواتساب وتليجرام وانستغرام من إرسال رسائل وهمية)
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    const isBot = userAgent.includes('bot') || userAgent.includes('spider') || userAgent.includes('crawl');
+    const isBot = userAgent.includes('bot') || userAgent.includes('facebookexternalhit');
 
-    if (!isBot && visitorIp) {
+    // 3. الإرسال إلى تليجرام **أولاً** قبل التوجيه
+    if (!isBot) {
         const token = process.env.TELEGRAM_TOKEN;
         const chatId = process.env.TELEGRAM_CHAT_ID;
         
         if (token && chatId) {
-            // استخدام fetch بشكل آمن
-            fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(`🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`)}`)
-            .catch(() => {});
+            const messageText = `🚨 New Visitor!\nTo: ${destinationName}\nIP: ${visitorIp}`;
+            const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(messageText)}`;
+            
+            try {
+                // استخدام await هنا يمنع Vercel من إغلاق العملية قبل وصول التنبيه
+                await fetch(url);
+            } catch (err) {
+                console.error("Error:", err);
+            }
         }
     }
+
+    // 4. أخيراً: توجيه الزائر (بعد التأكد من إرسال التنبيه لك)
+    res.redirect(302, targetUrl);
 });
 
 module.exports = app;
